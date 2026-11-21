@@ -3,67 +3,117 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>IT PMO · Kanban Board (Demo)</title>
+<title>IT PMO · Neon Kanban (Demo)</title>
 <style>
 /* ============================================================
-   1. DESIGN TOKENS (corporate blue palette, neutral wordmark)
+   1. DESIGN TOKENS — neon on near-black
+   Chart series use the validated dark slots from the dataviz
+   palette (checked against the chart surface --surface).
    ============================================================ */
 :root {
-  --blue-950: #062036;
-  --blue-900: #0a2a4a;
-  --blue-700: #0b4f8a;
-  --blue-600: #1565b0;
-  --blue-500: #1b6fc2;
-  --blue-100: #e6f0fa;
-  --blue-50:  #f3f8fd;
+  color-scheme: dark;
+  --bg: #05070d;
+  --surface: #0a0d16;               /* chart surface */
+  --panel: rgba(12, 16, 28, 0.82);
+  --card: #0d1220;
+  --ink: #e8f1ff;
+  --ink-muted: #8ea0bf;
+  --line: rgba(0, 188, 255, 0.18);
+  --line-strong: rgba(0, 188, 255, 0.45);
 
-  --ink: #14202e;
-  --ink-muted: #4a5a6e;
-  --line: #d5dfeb;
-  --line-strong: #9fb3c8;
-  --surface: #ffffff;
-  --page: #eef3f9;
+  --lime: #bbf351;                  /* neon primary */
+  --cyan: #00bcff;                  /* neon secondary */
+  --red: #ff4d6d;
+  --red-ink: #ff6b86;
+  --amber: #ffb020;
 
-  --critical: #c62828;
-  --high: #d98e00;
-  --medium: #1b6fc2;
-  --low: #7a8699;
+  --critical: #ff3d5a;
+  --high: #ffb020;
+  --medium: #00bcff;
+  --low: #5a6b8c;
 
-  --danger: #b3261e;
-  --danger-bg: #fdecea;
-  --warning-bg: #fff4d6;
-  --warning-ink: #6b4a00;
-  --focus: #0b6bcb;
+  /* Chart series — dataviz dark slots (status colours) */
+  --c-backlog: #898781;
+  --c-progress: #3987e5;
+  --c-blocked: #e66767;
+  --c-done: #0ca30c;
+  --series: #3987e5;
 
+  --focus: #ffd166;
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
   --space-4: 16px;
   --space-5: 24px;
-
-  --radius: 8px;
+  --radius: 12px;
   --font: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
 /* ============================================================
-   2. BASE & LAYOUT
+   2. BASE, BACKDROP & ANIMATIONS
    ============================================================ */
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body {
   font-family: var(--font);
-  background: var(--page);
+  background: var(--bg);
   color: var(--ink);
   line-height: 1.4;
   min-height: 100vh;
+  overflow-x: hidden;
 }
-:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
-.app-header :focus-visible { outline-color: #ffd166; }
+/* Animated neon grid floor */
+body::before {
+  content: "";
+  position: fixed;
+  left: -50%; right: -50%; top: 42%; bottom: -20%;
+  pointer-events: none;
+  z-index: -2;
+  background-image:
+    linear-gradient(rgba(0, 188, 255, 0.16) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 188, 255, 0.16) 1px, transparent 1px);
+  background-size: 56px 56px;
+  transform: perspective(500px) rotateX(60deg);
+  transform-origin: 50% 0;
+  mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
+  -webkit-mask-image: linear-gradient(to bottom, #000 0%, transparent 85%);
+  animation: grid-drift 5s linear infinite;
+}
+/* Slow-breathing colour glows */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(900px 520px at 8% -10%, rgba(0, 188, 255, 0.18), transparent 60%),
+    radial-gradient(800px 480px at 100% 0%, rgba(187, 243, 81, 0.12), transparent 60%);
+  animation: glow-breathe 8s ease-in-out infinite alternate;
+}
+@keyframes grid-drift { to { background-position: 0 56px; } }
+@keyframes glow-breathe { from { opacity: 0.55; } to { opacity: 1; } }
+@keyframes rise { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes sweep { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes flicker {
+  0%, 19%, 21%, 23%, 25%, 54%, 56%, 100% { opacity: 1; }
+  20%, 24%, 55% { opacity: 0.6; }
+}
+@keyframes grow-y { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes pulse-dot { 0%, 100% { box-shadow: 0 0 0 0 rgba(187, 243, 81, 0.6); } 50% { box-shadow: 0 0 0 6px rgba(187, 243, 81, 0); } }
 
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.app-header :focus-visible { outline-color: var(--lime); }
+
+/* ============================================================
+   3. HEADER
+   ============================================================ */
 .app-header {
-  background: var(--blue-900);
-  color: #fff;
+  position: relative;
+  background: rgba(5, 7, 13, 0.75);
+  border-bottom: 1px solid var(--line);
+  backdrop-filter: blur(8px);
   padding: var(--space-4) var(--space-5);
   display: flex;
   flex-wrap: wrap;
@@ -71,14 +121,28 @@ body {
   justify-content: space-between;
   gap: var(--space-3);
 }
-.wordmark { margin: 0; font-size: 1.5rem; font-weight: 800; letter-spacing: 0.04em; }
-.tagline { margin: 2px 0 0; font-size: 0.85rem; opacity: 0.85; }
+.wordmark {
+  margin: 0;
+  font-size: 1.7rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--cyan);
+  text-shadow: 0 0 6px rgba(0, 188, 255, 0.9), 0 0 18px rgba(0, 188, 255, 0.6), 0 0 42px rgba(0, 188, 255, 0.35);
+  animation: flicker 6s infinite;
+}
+.wordmark span {
+  color: var(--lime);
+  text-shadow: 0 0 6px rgba(187, 243, 81, 0.9), 0 0 18px rgba(187, 243, 81, 0.55), 0 0 40px rgba(187, 243, 81, 0.3);
+}
+.tagline { margin: 2px 0 0; font-size: 0.85rem; color: var(--ink-muted); }
 .demo-note {
   margin: var(--space-2) 0 0;
   font-size: 0.8rem;
-  background: rgba(255, 255, 255, 0.12);
+  color: var(--ink-muted);
+  background: rgba(0, 188, 255, 0.08);
+  border: 1px solid var(--line);
   padding: 4px 8px;
-  border-radius: 4px;
+  border-radius: 6px;
   display: inline-block;
 }
 
@@ -92,32 +156,79 @@ body {
 .main { min-width: 0; }
 
 /* ============================================================
-   3. SUMMARY STRIP & FILTERS
+   4. KPI HERO
    ============================================================ */
-.summary { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-bottom: var(--space-3); }
-.stat {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  padding: var(--space-2) var(--space-3);
-  min-width: 110px;
+.kpis {
+  display: grid;
+  grid-template-columns: 1.5fr 1fr 1fr 1fr;
+  gap: 14px;
+  margin-bottom: var(--space-4);
 }
-.stat-label {
+.kpi {
+  position: relative;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px 20px;
+  overflow: hidden;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  animation: rise 0.6s both;
+  min-width: 0;
+}
+.kpi:nth-child(2) { animation-delay: 0.08s; }
+.kpi:nth-child(3) { animation-delay: 0.16s; }
+.kpi:nth-child(4) { animation-delay: 0.24s; }
+.kpi::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 3px;
+  background: var(--accent);
+  box-shadow: 0 0 14px var(--glow);
+  transform-origin: left;
+  animation: sweep 1.2s ease-out both;
+}
+.kpi-label {
   display: block;
   font-size: 0.72rem;
-  color: var(--ink-muted);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.16em;
+  color: var(--ink-muted);
+  font-weight: 700;
 }
-.stat-value { font-size: 1.25rem; font-weight: 700; color: var(--blue-900); }
-.stat-overdue .stat-value { color: var(--danger); }
+.kpi-value {
+  display: block;
+  font-size: clamp(2.8rem, 5.6vw, 4.8rem);
+  font-weight: 800;
+  line-height: 1;
+  margin: 10px 0 8px;
+  color: var(--accent);
+  text-shadow: 0 0 6px var(--glow), 0 0 26px var(--glow);
+  font-variant-numeric: normal;
+}
+.kpi-sub { display: block; font-size: 0.85rem; color: var(--ink-muted); }
+.kpi-hero { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.kpi-hero .kpi-main { min-width: 0; }
+.kpi-ring { width: 104px; height: 104px; flex: 0 0 auto; transform: rotate(-90deg); filter: drop-shadow(0 0 8px var(--glow)); }
+.ring-track { fill: none; stroke: rgba(187, 243, 81, 0.12); stroke-width: 9; }
+.ring-fill {
+  fill: none;
+  stroke: var(--lime);
+  stroke-width: 9;
+  stroke-linecap: round;
+  stroke-dasharray: 0 100;
+  transition: stroke-dasharray 1.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
 
+/* ============================================================
+   5. FILTERS, TABS
+   ============================================================ */
 .filters {
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-3);
   align-items: flex-end;
-  background: var(--surface);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: var(--space-3);
@@ -125,50 +236,110 @@ body {
 }
 .filter-status { margin: 0 0 0 auto; font-size: 0.85rem; color: var(--ink-muted); }
 
+.tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-4);
+  overflow-x: auto;
+}
+.tab {
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.95rem;
+  background: none;
+  border: 0;
+  color: var(--ink-muted);
+  padding: 10px 18px;
+  cursor: pointer;
+  position: relative;
+  border-radius: 8px 8px 0 0;
+  white-space: nowrap;
+}
+.tab:hover { color: var(--ink); background: rgba(0, 188, 255, 0.06); }
+.tab[aria-selected="true"] {
+  color: var(--lime);
+  text-shadow: 0 0 10px rgba(187, 243, 81, 0.6);
+}
+.tab[aria-selected="true"]::after {
+  content: "";
+  position: absolute;
+  left: 12px; right: 12px; bottom: -1px;
+  height: 3px;
+  background: var(--lime);
+  box-shadow: 0 0 12px var(--lime);
+  border-radius: 3px;
+}
+.tab-panel[hidden] { display: none; }
+.tab-panel.enter { animation: rise 0.45s both; }
+
 /* ============================================================
-   4. FORMS & BUTTONS
+   6. FORMS & BUTTONS
    ============================================================ */
 .panel {
-  background: var(--surface);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: var(--space-4);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
 }
-.sidebar-title { margin: 0 0 var(--space-3); font-size: 1.05rem; color: var(--blue-900); }
+.sidebar-title {
+  margin: 0 0 var(--space-3);
+  font-size: 1.05rem;
+  color: var(--cyan);
+  text-shadow: 0 0 10px rgba(0, 188, 255, 0.5);
+}
 .field-stack { display: grid; gap: var(--space-3); }
 .field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .field label { font-size: 0.8rem; font-weight: 600; color: var(--ink-muted); }
 input, select, textarea {
   font: inherit;
   color: var(--ink);
-  background: #fff;
-  border: 1px solid var(--line-strong);
-  border-radius: 6px;
+  background: #070a12;
+  border: 1px solid rgba(0, 188, 255, 0.3);
+  border-radius: 8px;
   padding: 7px 9px;
   width: 100%;
 }
+input:focus, select:focus, textarea:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0, 188, 255, 0.2); outline: none; }
+option { background: #0a0d16; color: var(--ink); }
 textarea { resize: vertical; }
-.is-invalid, input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--danger); }
-.field-error { margin: 0; color: var(--danger); font-size: 0.8rem; }
+.is-invalid, input[aria-invalid="true"], textarea[aria-invalid="true"] { border-color: var(--red); }
+.field-error { margin: 0; color: var(--red-ink); font-size: 0.8rem; }
 .field-error:empty { display: none; }
-#filters-select, .filters select, .filters input { width: auto; min-width: 180px; }
 .filters .field { flex: 0 1 auto; }
+.filters select, .filters input { width: auto; min-width: 180px; }
 
 .btn {
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
   padding: 8px 14px;
-  border-radius: 6px;
+  border-radius: 8px;
   border: 1px solid transparent;
   cursor: pointer;
+  transition: box-shadow 0.2s, background 0.2s, transform 0.1s;
 }
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-primary { background: var(--blue-700); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--blue-600); }
-.btn-secondary { background: #fff; color: var(--blue-900); border-color: var(--line-strong); }
-.btn-secondary:hover { background: var(--blue-100); }
-.btn-header { background: #fff; color: var(--blue-900); }
-.btn-header:hover { background: var(--blue-100); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
+.btn-primary {
+  background: var(--lime);
+  color: #05070d;
+  box-shadow: 0 0 16px rgba(187, 243, 81, 0.45);
+}
+.btn-primary:hover:not(:disabled) { box-shadow: 0 0 26px rgba(187, 243, 81, 0.7); }
+.btn-secondary {
+  background: transparent;
+  color: var(--cyan);
+  border-color: var(--line-strong);
+}
+.btn-secondary:hover { background: rgba(0, 188, 255, 0.12); box-shadow: 0 0 14px rgba(0, 188, 255, 0.35); }
+.btn-header {
+  background: transparent;
+  color: var(--lime);
+  border: 1px solid var(--lime);
+  box-shadow: 0 0 14px rgba(187, 243, 81, 0.35), inset 0 0 10px rgba(187, 243, 81, 0.08);
+}
+.btn-header:hover { background: rgba(187, 243, 81, 0.12); box-shadow: 0 0 24px rgba(187, 243, 81, 0.6); }
 .form-actions { display: flex; gap: var(--space-2); margin-top: var(--space-3); }
 
 .btn-mini {
@@ -176,14 +347,14 @@ textarea { resize: vertical; }
   font-size: 0.78rem;
   padding: 3px 8px;
   border: 1px solid var(--line-strong);
-  border-radius: 5px;
-  background: #fff;
-  color: var(--blue-900);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--cyan);
   cursor: pointer;
 }
-.btn-mini:hover { background: var(--blue-100); }
-.btn-danger { background: var(--danger); border-color: var(--danger); color: #fff; }
-.btn-danger:hover { background: #8e1d17; }
+.btn-mini:hover { background: rgba(0, 188, 255, 0.12); }
+.btn-danger { background: var(--red); border-color: var(--red); color: #05070d; }
+.btn-danger:hover { background: #ff7a92; }
 
 .icon-btn {
   border: 0;
@@ -195,10 +366,10 @@ textarea { resize: vertical; }
   padding: 0 4px;
   border-radius: 4px;
 }
-.icon-btn:hover { color: var(--danger); background: var(--danger-bg); }
+.icon-btn:hover { color: var(--red); background: rgba(255, 77, 109, 0.14); }
 
 /* ============================================================
-   5. KANBAN BOARD & COLUMNS
+   7. KANBAN BOARD
    ============================================================ */
 .board {
   display: grid;
@@ -207,16 +378,17 @@ textarea { resize: vertical; }
   align-items: start;
 }
 .column {
-  background: var(--blue-50);
+  background: rgba(10, 14, 24, 0.7);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: var(--space-3);
   min-height: 200px;
-  transition: background 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
 }
 .column.drop-target {
-  background: var(--blue-100);
-  outline: 2px dashed var(--blue-500);
+  background: rgba(0, 188, 255, 0.12);
+  box-shadow: 0 0 24px rgba(0, 188, 255, 0.35);
+  outline: 2px dashed var(--cyan);
   outline-offset: -4px;
 }
 .column-header {
@@ -225,53 +397,53 @@ textarea { resize: vertical; }
   justify-content: space-between;
   margin-bottom: var(--space-3);
 }
-.column-header h2 { margin: 0; font-size: 0.95rem; color: var(--blue-900); }
+.column-header h2 { margin: 0; font-size: 0.95rem; color: var(--ink); }
 .count-badge {
-  background: var(--blue-700);
-  color: #fff;
+  background: var(--cyan);
+  color: #001018;
   border-radius: 999px;
   min-width: 26px;
   padding: 1px 8px;
   text-align: center;
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 800;
+  box-shadow: 0 0 10px rgba(0, 188, 255, 0.5);
 }
 .column-body { display: flex; flex-direction: column; gap: var(--space-2); }
 .empty { margin: var(--space-2) 0; color: var(--ink-muted); font-size: 0.85rem; text-align: center; }
 
-/* ============================================================
-   6. CARDS
-   ============================================================ */
 .card {
-  background: #fff;
+  background: var(--card);
   border: 1px solid var(--line);
   border-left: 6px solid var(--low);
-  border-radius: 6px;
+  border-radius: 8px;
   padding: var(--space-3);
-  box-shadow: 0 1px 2px rgba(10, 42, 74, 0.08);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.4);
   cursor: grab;
+  transition: transform 0.15s, box-shadow 0.15s;
 }
-.card.dragging { opacity: 0.5; }
-.card.priority-critical { border-left-color: var(--critical); }
+.card:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0, 188, 255, 0.18); }
+.card.dragging { opacity: 0.45; }
+.card.priority-critical { border-left-color: var(--critical); box-shadow: -4px 0 14px rgba(255, 61, 90, 0.25), 0 6px 18px rgba(0, 0, 0, 0.4); }
 .card.priority-high     { border-left-color: var(--high); }
 .card.priority-medium   { border-left-color: var(--medium); }
 .card.priority-low      { border-left-color: var(--low); }
 
 .card-top { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
 .card-id { font-family: var(--mono); font-size: 0.75rem; color: var(--ink-muted); }
-.card-title { font-size: 0.95rem; margin: 4px 0 var(--space-2); }
+.card-title { font-size: 0.95rem; margin: 4px 0 var(--space-2); color: var(--ink); }
 .card-meta { margin: 0; display: grid; gap: 2px; font-size: 0.8rem; }
 .card-meta div { display: flex; gap: 6px; }
 .card-meta dt { color: var(--ink-muted); min-width: 64px; }
 .card-meta dd { margin: 0; font-weight: 500; }
-.is-overdue { color: var(--danger); font-weight: 700; }
+.is-overdue { color: var(--red-ink); font-weight: 700; }
 
 .card-tags { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--space-2) 0; }
-.pill { border-radius: 999px; padding: 2px 9px; font-size: 0.75rem; font-weight: 700; }
-.pill-critical { background: var(--critical); color: #fff; }
-.pill-high     { background: #ffe08a; color: #4d3600; }
-.pill-medium   { background: var(--blue-100); color: var(--blue-900); }
-.pill-low      { background: #e3e7ee; color: #3a4454; }
+.pill { border-radius: 999px; padding: 2px 9px; font-size: 0.75rem; font-weight: 800; }
+.pill-critical { background: var(--critical); color: #07080d; box-shadow: 0 0 10px rgba(255, 61, 90, 0.6); }
+.pill-high     { background: var(--high); color: #07080d; }
+.pill-medium   { background: rgba(0, 188, 255, 0.18); color: var(--cyan); border: 1px solid var(--line-strong); }
+.pill-low      { background: #26304a; color: #cdd9f0; }
 .tag {
   border: 1px solid var(--line);
   border-radius: 4px;
@@ -280,22 +452,217 @@ textarea { resize: vertical; }
   color: var(--ink-muted);
 }
 .badge-overdue {
-  background: var(--danger-bg);
-  color: var(--danger);
-  border: 1px solid var(--danger);
+  background: rgba(255, 77, 109, 0.15);
+  color: var(--red-ink);
+  border: 1px solid var(--red);
   border-radius: 4px;
   padding: 1px 6px;
   font-size: 0.75rem;
   font-weight: 700;
 }
-
 .card-actions { display: flex; flex-direction: column; gap: 6px; }
 .move-menu { display: flex; flex-wrap: wrap; gap: 4px; }
 .confirm { display: inline-flex; align-items: center; gap: 4px; font-size: 0.8rem; }
-.confirm-text { color: var(--danger); font-weight: 700; }
+.confirm-text { color: var(--red-ink); font-weight: 700; }
 
 /* ============================================================
-   7. TOASTS
+   8. TIMELINE
+   ============================================================ */
+.view-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: var(--space-5);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+}
+.view-title { margin: 0 0 4px; font-size: 1.1rem; color: var(--ink); }
+.view-sub { margin: 0 0 var(--space-4); color: var(--ink-muted); font-size: 0.85rem; }
+
+.timeline {
+  position: relative;
+  list-style: none;
+  margin: 0;
+  padding: 0 0 0 36px;
+}
+.timeline::before {
+  content: "";
+  position: absolute;
+  left: 11px; top: 0; bottom: 0;
+  width: 2px;
+  background: linear-gradient(to bottom, var(--cyan), var(--lime));
+  box-shadow: 0 0 10px rgba(0, 188, 255, 0.6);
+  transform-origin: top;
+  animation: grow-y 1.2s ease-out both;
+}
+.tl-group {
+  position: relative;
+  margin: 24px 0 10px;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  font-weight: 800;
+  color: var(--ink-muted);
+}
+.tl-group:first-child { margin-top: 0; }
+.tl-item {
+  position: relative;
+  margin-bottom: 12px;
+  display: grid;
+  grid-template-columns: 130px minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: start;
+  animation: rise 0.5s both;
+  animation-delay: var(--d, 0ms);
+  --accent: var(--low);
+}
+.tl-item.priority-critical { --accent: var(--critical); }
+.tl-item.priority-high     { --accent: var(--high); }
+.tl-item.priority-medium   { --accent: var(--medium); }
+.tl-node {
+  position: absolute;
+  left: -31px;
+  top: 14px;
+  width: 14px; height: 14px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 2px solid var(--accent);
+  box-shadow: 0 0 10px var(--accent);
+}
+.tl-item.is-overdue-item .tl-node { animation: pulse-dot 1.8s infinite; }
+.tl-when { padding-top: 6px; }
+.tl-when strong { display: block; font-size: 0.95rem; color: var(--ink); }
+.tl-rel { font-size: 0.8rem; color: var(--ink-muted); }
+.tl-rel.is-overdue { color: var(--red-ink); font-weight: 700; }
+.tl-card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 8px;
+  padding: var(--space-3);
+  min-width: 0;
+  transition: box-shadow 0.15s, transform 0.15s;
+}
+.tl-card:hover { transform: translateX(3px); box-shadow: 0 0 18px rgba(0, 188, 255, 0.2); }
+.tl-card .card-title { margin: 4px 0 6px; }
+.tl-meta { margin: 0; font-size: 0.8rem; color: var(--ink-muted); display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* ============================================================
+   9. CHARTS (inline SVG + CSS bars)
+   ============================================================ */
+.charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.chart-card {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px 20px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  animation: rise 0.5s both;
+  min-width: 0;
+}
+.chart-card.wide { grid-column: 1 / -1; }
+.chart-title { margin: 0 0 2px; font-size: 1rem; color: var(--ink); }
+.chart-sub { margin: 0 0 var(--space-4); color: var(--ink-muted); font-size: 0.82rem; }
+
+.donut-wrap { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+.donut-box { position: relative; width: 210px; height: 210px; flex: 0 0 auto; }
+.donut { width: 100%; height: 100%; overflow: visible; }
+.donut-track { fill: none; stroke: rgba(255, 255, 255, 0.06); stroke-width: 12; }
+.donut-seg {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: butt;
+  filter: drop-shadow(0 0 4px currentColor);
+  transition: stroke-dasharray 1.1s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+.donut-center strong {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--lime);
+  text-shadow: 0 0 14px rgba(187, 243, 81, 0.5);
+}
+.donut-center span { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--ink-muted); }
+
+.legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; flex: 1 1 200px; min-width: 0; }
+.legend li { display: flex; align-items: center; gap: 8px; font-size: 0.9rem; color: var(--ink); }
+.swatch { width: 12px; height: 12px; border-radius: 3px; background: var(--c); flex: 0 0 auto; box-shadow: 0 0 8px var(--c); }
+.legend .icon { width: 1.1em; text-align: center; color: var(--ink-muted); }
+.legend .num { margin-left: auto; font-weight: 800; font-variant-numeric: tabular-nums; }
+.legend .pct { width: 48px; text-align: right; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+
+.hbar-row {
+  display: grid;
+  grid-template-columns: 150px minmax(0, 1fr) 36px;
+  gap: 12px;
+  align-items: center;
+  margin: 10px 0;
+}
+.hbar-name { font-size: 0.88rem; color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar {
+  display: flex;
+  height: 26px;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 6px;
+  overflow: hidden;
+  min-width: 0;
+}
+.hseg {
+  height: 100%;
+  width: 0;
+  background: var(--c);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.74rem;
+  font-weight: 800;
+  color: #05070d;
+  white-space: nowrap;
+  overflow: hidden;
+  transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 45%, transparent);
+}
+.hbar-total { text-align: right; font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
+.hbar-empty { font-size: 0.8rem; color: var(--ink-muted); }
+
+.data-table { margin-top: var(--space-3); }
+.data-table summary { cursor: pointer; color: var(--cyan); font-weight: 700; }
+.data-table table { width: 100%; border-collapse: collapse; margin-top: var(--space-3); font-size: 0.88rem; }
+.data-table th, .data-table td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: right; font-variant-numeric: tabular-nums; }
+.data-table th:first-child, .data-table td:first-child { text-align: left; }
+.data-table th { color: var(--ink-muted); font-weight: 700; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; }
+.data-table tfoot td { font-weight: 800; color: var(--lime); }
+
+/* Tooltip */
+.tip {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  background: #0d1424;
+  border: 1px solid var(--cyan);
+  box-shadow: 0 0 16px rgba(0, 188, 255, 0.4);
+  color: var(--ink);
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.12s, transform 0.12s;
+  max-width: 260px;
+}
+.tip.show { opacity: 1; transform: none; }
+
+/* ============================================================
+   10. TOASTS
    ============================================================ */
 .toast-region {
   position: fixed;
@@ -304,33 +671,52 @@ textarea { resize: vertical; }
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
-  z-index: 10;
+  z-index: 30;
   max-width: 360px;
 }
 .toast {
-  background: var(--blue-900);
-  color: #fff;
+  background: #0d1424;
+  color: var(--ink);
+  border: 1px solid var(--lime);
+  box-shadow: 0 0 18px rgba(187, 243, 81, 0.35);
   padding: 10px 14px;
-  border-radius: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
   font-size: 0.9rem;
+  animation: rise 0.3s both;
 }
-.toast-warning {
-  background: var(--warning-bg);
-  color: var(--warning-ink);
-  border-left: 5px solid var(--high);
-}
+.toast-warning { border-color: var(--amber); box-shadow: 0 0 18px rgba(255, 176, 32, 0.35); }
 
 /* ============================================================
-   8. RESPONSIVE
+   11. RESPONSIVE & MOTION PREFERENCES
    ============================================================ */
+@media (max-width: 1180px) {
+  .kpis { grid-template-columns: 1fr 1fr; }
+  .board { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .layout { grid-template-columns: 1fr; }
+  .charts { grid-template-columns: 1fr; }
+}
 @media (max-width: 767px) {
   .app-header { padding: var(--space-3); }
-  .layout { grid-template-columns: 1fr; padding: var(--space-3); gap: var(--space-4); }
+  .layout { padding: var(--space-3); gap: var(--space-4); }
   .board { grid-template-columns: 1fr; }
+  .kpis { grid-template-columns: 1fr 1fr; gap: 10px; }
+  .kpi { padding: 14px; }
+  .kpi-ring { width: 80px; height: 80px; }
+  .kpi-hero .kpi-main { min-width: 0; }
   .filter-status { margin: 0; width: 100%; }
   .filters .field, .filters select, .filters input { min-width: 0; width: 100%; }
   .filters { flex-direction: column; align-items: stretch; }
+  .tl-item { grid-template-columns: 1fr; gap: 4px; }
+  .tl-when { padding-top: 0; }
+  .view-card { padding: var(--space-4); }
+  .chart-card { padding: 14px; }
+  .hbar-row { grid-template-columns: 96px minmax(0, 1fr) 30px; gap: 8px; }
+  .hbar-name { font-size: 0.8rem; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 </style>
 </head>
@@ -338,8 +724,8 @@ textarea { resize: vertical; }
 
 <header class="app-header">
   <div>
-    <h1 class="wordmark">IT PMO</h1>
-    <p class="tagline">IT Project Management Office · Kanban board</p>
+    <h1 class="wordmark">IT <span>PMO</span></h1>
+    <p class="tagline">IT Project Management Office · Neon command view</p>
     <p class="demo-note">Demo mode: data is kept in memory only. Refreshing the page resets the board to the seeded demo tasks.</p>
   </div>
   <button type="button" class="btn btn-header" id="header-add-btn">+ Add Task</button>
@@ -410,17 +796,37 @@ textarea { resize: vertical; }
 
   <main class="main" id="main">
 
-    <!-- Summary strip -->
-    <section class="summary" aria-label="Board summary">
-      <div class="stat"><span class="stat-label">Total</span><span class="stat-value" id="sum-total">0</span></div>
-      <div class="stat"><span class="stat-label">Backlog</span><span class="stat-value" id="sum-backlog">0</span></div>
-      <div class="stat"><span class="stat-label">In Progress</span><span class="stat-value" id="sum-progress">0</span></div>
-      <div class="stat"><span class="stat-label">Blocked</span><span class="stat-value" id="sum-blocked">0</span></div>
-      <div class="stat"><span class="stat-label">Done</span><span class="stat-value" id="sum-done">0</span></div>
-      <div class="stat stat-overdue"><span class="stat-label">Overdue</span><span class="stat-value" id="sum-overdue">0</span></div>
+    <!-- Big KPIs -->
+    <section class="kpis" id="kpis" aria-label="Key performance indicators">
+      <article class="kpi kpi-hero" style="--accent:#bbf351; --glow:rgba(187,243,81,.6);">
+        <div class="kpi-main">
+          <span class="kpi-label">Completion</span>
+          <span class="kpi-value" id="kpi-completion">0%</span>
+          <span class="kpi-sub" id="kpi-completion-sub">0 of 0 tasks done</span>
+        </div>
+        <svg class="kpi-ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="ring-track" cx="60" cy="60" r="50"></circle>
+          <circle class="ring-fill" id="kpi-ring" cx="60" cy="60" r="50" pathLength="100" data-dash="0 100"></circle>
+        </svg>
+      </article>
+      <article class="kpi" style="--accent:#00bcff; --glow:rgba(0,188,255,.6);">
+        <span class="kpi-label">In Progress</span>
+        <span class="kpi-value" id="kpi-progress">0</span>
+        <span class="kpi-sub">Work underway</span>
+      </article>
+      <article class="kpi" style="--accent:#ff4d6d; --glow:rgba(255,77,109,.6);">
+        <span class="kpi-label">Blocked</span>
+        <span class="kpi-value" id="kpi-blocked">0</span>
+        <span class="kpi-sub">Needs unblocking</span>
+      </article>
+      <article class="kpi" style="--accent:#ffb020; --glow:rgba(255,176,32,.6);">
+        <span class="kpi-label">Overdue</span>
+        <span class="kpi-value" id="kpi-overdue">0</span>
+        <span class="kpi-sub">Past due, not done</span>
+      </article>
     </section>
 
-    <!-- Filter bar -->
+    <!-- Filter bar (applies to every view) -->
     <section class="filters" aria-label="Filter tasks">
       <div class="field">
         <label for="filter-project">Project</label>
@@ -438,12 +844,36 @@ textarea { resize: vertical; }
       <p class="filter-status" id="filter-status" aria-live="polite"></p>
     </section>
 
-    <!-- Kanban board: columns are rendered by renderBoard() -->
-    <section class="board" id="board" aria-label="Kanban board"></section>
+    <!-- Tabs -->
+    <nav class="tabs" role="tablist" aria-label="Views">
+      <button type="button" role="tab" class="tab" id="tab-board" data-tab="board" aria-controls="panel-board" aria-selected="true" tabindex="0">Board</button>
+      <button type="button" role="tab" class="tab" id="tab-timeline" data-tab="timeline" aria-controls="panel-timeline" aria-selected="false" tabindex="-1">Timeline</button>
+      <button type="button" role="tab" class="tab" id="tab-chart" data-tab="chart" aria-controls="panel-chart" aria-selected="false" tabindex="-1">Chart</button>
+    </nav>
+
+    <!-- Board panel: columns are rendered by renderBoard() -->
+    <section class="tab-panel" id="panel-board" data-tab="board" role="tabpanel" aria-labelledby="tab-board">
+      <section class="board" id="board" aria-label="Kanban board"></section>
+    </section>
+
+    <!-- Timeline panel: rendered by renderTimeline() -->
+    <section class="tab-panel" id="panel-timeline" data-tab="timeline" role="tabpanel" aria-labelledby="tab-timeline" hidden>
+      <section class="view-card" aria-labelledby="timeline-title">
+        <h2 class="view-title" id="timeline-title">Deadline timeline</h2>
+        <p class="view-sub">Filtered tasks ordered by due date. Overdue items pulse red.</p>
+        <ol class="timeline" id="timeline"></ol>
+      </section>
+    </section>
+
+    <!-- Chart panel: rendered by renderCharts() -->
+    <section class="tab-panel" id="panel-chart" data-tab="chart" role="tabpanel" aria-labelledby="tab-chart" hidden>
+      <div class="charts" id="charts"></div>
+    </section>
 
   </main>
 </div>
 
+<div class="tip" id="tip" role="tooltip"></div>
 <div class="toast-region" id="toast-region" aria-live="polite"></div>
 
 <!--
@@ -468,6 +898,16 @@ const ID_PREFIX  = "UOB-ITPM-";
 const TITLE_MAX  = 80;
 const DESC_MAX   = 500;
 const TOAST_MS   = 4000;
+const REDUCE_MOTION = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Status metadata: colour, icon and label (icon + label means colour is never the only cue).
+const STATUS_META = {
+  "Backlog":     { icon: "○", color: "var(--c-backlog)" },
+  "In Progress": { icon: "◐", color: "var(--c-progress)" },
+  "Blocked":     { icon: "✕", color: "var(--c-blocked)" },
+  "Done":        { icon: "✓", color: "var(--c-done)" },
+};
+const TIMELINE_BUCKETS = ["Overdue", "Today", "Next 7 days", "Next 30 days", "Later", "Completed"];
 
 // Maps form field keys to element ids, and keys that have inline error elements.
 const FIELD_IDS = {
@@ -483,6 +923,7 @@ const state = {
   tasks: [],
   filters: { project: "", assignee: "", priority: "" },
   nextSeq: 1,
+  activeTab: "board",
   moveOpenId: null,        // card whose "Move ▸" menu is open
   confirmDeleteId: null,   // card currently showing "Delete? Yes / No"
   focusSelector: null,     // element to focus after the next render (keyboard users)
@@ -507,6 +948,15 @@ function formatDate(iso) {
   const [y, m, d] = String(iso).split("-").map(Number);
   if (!y || !m || !d) return "—";
   return new Date(y, m - 1, d).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+// Whole days from today to an ISO date (negative = past).
+function daysFromToday(iso) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const now = new Date();
+  const a = Date.UTC(y, m - 1, d);
+  const b = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  return Math.round((a - b) / 86400000);
 }
 
 function priorityClass(priority) { return priority.toLowerCase(); }
@@ -588,17 +1038,56 @@ function resetFilters() {
 }
 
 /* ============================================================
+   ANIMATION HELPERS
+   ============================================================ */
+// Animate [data-w] (bars, % width) and [data-dash] (ring strokes) inside root.
+function animateIn(root) {
+  if (!root) return;
+  const bars = root.querySelectorAll("[data-w]");
+  const rings = root.querySelectorAll("[data-dash]");
+  bars.forEach((el) => { el.style.transition = "none"; el.style.width = "0%"; });
+  rings.forEach((el) => { el.style.transition = "none"; el.style.strokeDasharray = "0 100"; });
+  void root.offsetWidth; // force reflow so the zero state is painted first
+  bars.forEach((el) => { el.style.transition = ""; el.style.width = `${el.dataset.w}%`; });
+  rings.forEach((el) => { el.style.transition = ""; el.style.strokeDasharray = el.dataset.dash; });
+}
+
+// Tween a KPI number from its last value to the new target.
+function countTo(el, target, suffix = "") {
+  if (!el) return;
+  const from = Number(el.dataset.v || 0);
+  el.dataset.v = String(target);
+  cancelAnimationFrame(el._raf || 0);
+  if (REDUCE_MOTION || from === target) { el.textContent = `${target}${suffix}`; return; }
+  const start = performance.now();
+  const dur = 900;
+  const step = (now) => {
+    const k = Math.min(1, (now - start) / dur);
+    const eased = 1 - Math.pow(1 - k, 3);
+    el.textContent = `${Math.round(from + (target - from) * eased)}${suffix}`;
+    if (k < 1) el._raf = requestAnimationFrame(step);
+  };
+  el._raf = requestAnimationFrame(step);
+}
+
+/* ============================================================
    RENDERING — the board is rebuilt from state.
    Card markup only changes inside renderBoard().
    ============================================================ */
-function renderSummary() {
+function renderKpis() {
+  const total = state.tasks.length;
   const count = (status) => state.tasks.filter((t) => t.status === status).length;
-  setText("sum-total", state.tasks.length);
-  setText("sum-backlog", count("Backlog"));
-  setText("sum-progress", count("In Progress"));
-  setText("sum-blocked", count("Blocked"));
-  setText("sum-done", count("Done"));
-  setText("sum-overdue", state.tasks.filter(isOverdue).length);
+  const done = count("Done");
+  const pct = total ? Math.round((done / total) * 100) : 0;
+
+  countTo(document.getElementById("kpi-completion"), pct, "%");
+  setText("kpi-completion-sub", `${done} of ${total} tasks done`);
+  countTo(document.getElementById("kpi-progress"), count("In Progress"));
+  countTo(document.getElementById("kpi-blocked"), count("Blocked"));
+  countTo(document.getElementById("kpi-overdue"), state.tasks.filter(isOverdue).length);
+
+  document.getElementById("kpi-ring").dataset.dash = `${pct} 100`;
+  animateIn(document.getElementById("kpis"));
 }
 
 function renderCard(task) {
@@ -668,7 +1157,10 @@ function renderBoard() {
   board.innerHTML = COLUMNS.map((s) => renderColumn(s, visible)).join("");
 
   setText("filter-status", `Showing ${visible.length} of ${state.tasks.length} tasks`);
-  renderSummary();
+  renderKpis();
+  renderTimeline();
+  renderCharts();
+  animateIn(document.querySelector(`.tab-panel[data-tab="${state.activeTab}"]`));
 
   // Restore keyboard focus after a re-render.
   if (state.focusSelector) {
@@ -676,6 +1168,186 @@ function renderBoard() {
     if (target) target.focus();
     state.focusSelector = null;
   }
+}
+
+/* ============================================================
+   TIMELINE VIEW
+   ============================================================ */
+function bucketOf(task) {
+  if (task.status === "Done") return "Completed";
+  const n = daysFromToday(task.dueDate);
+  if (n < 0) return "Overdue";
+  if (n === 0) return "Today";
+  if (n <= 7) return "Next 7 days";
+  if (n <= 30) return "Next 30 days";
+  return "Later";
+}
+
+function relativeLabel(task) {
+  if (task.status === "Done") return "Completed";
+  const n = daysFromToday(task.dueDate);
+  if (n < 0) return `${-n} day${-n === 1 ? "" : "s"} overdue`;
+  if (n === 0) return "Due today";
+  return `In ${n} day${n === 1 ? "" : "s"}`;
+}
+
+function renderTimeline() {
+  const ol = document.getElementById("timeline");
+  const tasks = filteredTasks().slice().sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+  if (!tasks.length) {
+    ol.innerHTML = '<li class="empty">No tasks match the filters.</li>';
+    return;
+  }
+
+  let html = "";
+  let i = 0;
+  TIMELINE_BUCKETS.forEach((bucket) => {
+    const items = tasks.filter((t) => bucketOf(t) === bucket);
+    if (!items.length) return;
+    html += `<li class="tl-group">${escapeHtml(bucket)} · ${items.length}</li>`;
+    items.forEach((t) => {
+      const id = escapeHtml(t.id);
+      const cls = priorityClass(t.priority);
+      const overdue = isOverdue(t);
+      html += `
+        <li class="tl-item priority-${cls}${overdue ? " is-overdue-item" : ""}" style="--d:${i * 60}ms">
+          <span class="tl-node" aria-hidden="true"></span>
+          <div class="tl-when">
+            <strong>${escapeHtml(formatDate(t.dueDate))}</strong>
+            <span class="tl-rel${overdue ? " is-overdue" : ""}">${escapeHtml(relativeLabel(t))}</span>
+          </div>
+          <article class="tl-card">
+            <div class="card-top">
+              <span class="card-id">${id}</span>
+              <span class="pill pill-${cls}">${escapeHtml(t.priority)}</span>
+            </div>
+            <h3 class="card-title">${escapeHtml(t.title)}</h3>
+            <p class="tl-meta">
+              <span>${escapeHtml(t.project)}</span> · <span>${escapeHtml(t.assignee)}</span>
+              <span class="tag">${STATUS_META[t.status].icon} ${escapeHtml(t.status)}</span>
+            </p>
+          </article>
+        </li>`;
+      i += 1;
+    });
+  });
+  ol.innerHTML = html;
+}
+
+/* ============================================================
+   CHART VIEW — inline SVG donut + CSS bars, derived from filtered tasks
+   ============================================================ */
+function statusLegend(counts, total) {
+  return `<ul class="legend" aria-label="Status legend">${counts.map(({ status, n }) => {
+    const pct = total ? Math.round((n / total) * 100) : 0;
+    return `<li><span class="swatch" style="--c:${STATUS_META[status].color}" aria-hidden="true"></span>
+      <span class="icon" aria-hidden="true">${STATUS_META[status].icon}</span>
+      <span>${escapeHtml(status)}</span>
+      <span class="num">${n}</span><span class="pct">${pct}%</span></li>`;
+  }).join("")}</ul>`;
+}
+
+function renderCharts() {
+  const root = document.getElementById("charts");
+  const tasks = filteredTasks();
+  const total = tasks.length;
+  const counts = COLUMNS.map((status) => ({ status, n: tasks.filter((t) => t.status === status).length }));
+
+  // Donut: status mix. Each segment is a pathLength=100 circle with a dash offset.
+  let cum = 0;
+  const segs = counts.filter((c) => c.n > 0).map(({ status, n }) => {
+    const pct = (n / total) * 100;
+    const dash = Math.max(pct - 0.6, 0);
+    const seg = `<circle class="donut-seg" cx="50" cy="50" r="40" pathLength="100"
+        style="stroke:${STATUS_META[status].color};stroke-dashoffset:${-cum}"
+        data-dash="${dash} 100" stroke-dasharray="0 100"
+        data-tip="${escapeHtml(status)}: ${n} task${n === 1 ? "" : "s"} (${Math.round(pct)}%)"></circle>`;
+    cum += pct;
+    return seg;
+  }).join("");
+
+  // Priority bars: single series, so one colour for all bars.
+  const pCounts = PRIORITIES.map((p) => ({ p, n: tasks.filter((t) => t.priority === p).length }));
+  const maxP = Math.max(1, ...pCounts.map((x) => x.n));
+  const priorityRows = pCounts.map(({ p, n }) => `
+      <div class="hbar-row">
+        <span class="hbar-name">${escapeHtml(p)}</span>
+        <div class="hbar"><div class="hseg" style="--c:var(--series)" data-w="${(n / maxP) * 100}"
+          data-tip="${escapeHtml(p)}: ${n} task${n === 1 ? "" : "s"}">${n && n / maxP > 0.12 ? n : ""}</div></div>
+        <span class="hbar-total">${n}</span>
+      </div>`).join("");
+
+  // Stacked bars per project: segment = status count, scaled to the largest project.
+  const projectTotals = PROJECTS.map((project) => {
+    const list = tasks.filter((t) => t.project === project);
+    return { project, list, total: list.length };
+  });
+  const maxProj = Math.max(1, ...projectTotals.map((x) => x.total));
+  const projectRows = projectTotals.map(({ project, list, total: pt }) => {
+    const segments = COLUMNS.map((status) => {
+      const n = list.filter((t) => t.status === status).length;
+      if (!n) return "";
+      const w = (n / maxProj) * 100;
+      const label = w >= 9 ? n : "";
+      return `<div class="hseg" style="--c:${STATUS_META[status].color}" data-w="${w}"
+        data-tip="${escapeHtml(project)} · ${escapeHtml(status)}: ${n}">${label}</div>`;
+    }).join("");
+    return `
+      <div class="hbar-row">
+        <span class="hbar-name" title="${escapeHtml(project)}">${escapeHtml(project)}</span>
+        <div class="hbar">${segments}</div>
+        <span class="hbar-total">${pt}</span>
+      </div>`;
+  }).join("");
+
+  // Table twin of the project chart (every chart needs a table view).
+  const tableRows = projectTotals.map(({ project, list, total: pt }) => `
+      <tr><th scope="row">${escapeHtml(project)}</th>
+        ${COLUMNS.map((s) => `<td>${list.filter((t) => t.status === s).length}</td>`).join("")}
+        <td>${pt}</td></tr>`).join("");
+  const colTotals = COLUMNS.map((s) => tasks.filter((t) => t.status === s).length);
+
+  root.innerHTML = `
+    <section class="chart-card" aria-labelledby="chart-status">
+      <h2 class="chart-title" id="chart-status">Status mix</h2>
+      <p class="chart-sub">${total} task${total === 1 ? "" : "s"} in view</p>
+      <div class="donut-wrap">
+        <div class="donut-box">
+          <svg class="donut" viewBox="0 0 100 100" role="img" aria-label="Status mix: ${total} tasks">
+            <g transform="rotate(-90 50 50)">
+              <circle class="donut-track" cx="50" cy="50" r="40" pathLength="100"></circle>
+              ${segs}
+            </g>
+          </svg>
+          <div class="donut-center"><strong>${total}</strong><span>tasks</span></div>
+        </div>
+        ${statusLegend(counts, total)}
+      </div>
+    </section>
+
+    <section class="chart-card" aria-labelledby="chart-priority">
+      <h2 class="chart-title" id="chart-priority">Priority load</h2>
+      <p class="chart-sub">Tasks per priority level</p>
+      ${priorityRows}
+    </section>
+
+    <section class="chart-card wide" aria-labelledby="chart-projects">
+      <h2 class="chart-title" id="chart-projects">Workload by project</h2>
+      <p class="chart-sub">Stacked by status · bar length scaled to the busiest project</p>
+      <ul class="legend" style="display:flex;flex-wrap:wrap;gap:6px 18px;margin-bottom:14px" aria-label="Status legend">
+        ${COLUMNS.map((s) => `<li><span class="swatch" style="--c:${STATUS_META[s].color}" aria-hidden="true"></span><span class="icon" aria-hidden="true">${STATUS_META[s].icon}</span>${escapeHtml(s)}</li>`).join("")}
+      </ul>
+      ${total ? projectRows : '<p class="hbar-empty">No tasks match the filters.</p>'}
+      <details class="data-table">
+        <summary>View as table</summary>
+        <table>
+          <caption class="view-sub" style="text-align:left">Tasks per project and status</caption>
+          <thead><tr><th scope="col">Project</th>${COLUMNS.map((s) => `<th scope="col">${escapeHtml(s)}</th>`).join("")}<th scope="col">Total</th></tr></thead>
+          <tbody>${tableRows}</tbody>
+          <tfoot><tr><th scope="row">All projects</th>${colTotals.map((n) => `<td>${n}</td>`).join("")}<td>${total}</td></tr></tfoot>
+        </table>
+      </details>
+    </section>`;
 }
 
 function showToast(message, kind = "success") {
@@ -832,6 +1504,67 @@ async function notifyNewTask(task) {
 }
 
 /* ============================================================
+   TABS
+   ============================================================ */
+function showTab(name) {
+  state.activeTab = name;
+  document.querySelectorAll('[role="tab"]').forEach((t) => {
+    const on = t.dataset.tab === name;
+    t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;
+  });
+  document.querySelectorAll(".tab-panel").forEach((p) => { p.hidden = p.dataset.tab !== name; });
+  const panel = document.querySelector(`.tab-panel[data-tab="${name}"]`);
+  hideTip();
+  panel.classList.remove("enter");
+  void panel.offsetWidth;
+  panel.classList.add("enter");
+  animateIn(panel);
+}
+
+function bindTabs() {
+  const tabs = [...document.querySelectorAll('[role="tab"]')];
+  tabs.forEach((tab, idx) => {
+    tab.addEventListener("click", () => showTab(tab.dataset.tab));
+    tab.addEventListener("keydown", (e) => {
+      if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
+      e.preventDefault();
+      let n = idx;
+      if (e.key === "ArrowRight") n = (idx + 1) % tabs.length;
+      else if (e.key === "ArrowLeft") n = (idx - 1 + tabs.length) % tabs.length;
+      else if (e.key === "Home") n = 0;
+      else n = tabs.length - 1;
+      tabs[n].focus();
+      showTab(tabs[n].dataset.tab);
+    });
+  });
+}
+
+/* ============================================================
+   TOOLTIP — follows the pointer over any [data-tip] mark
+   ============================================================ */
+function hideTip() { document.getElementById("tip").classList.remove("show"); }
+
+function bindTooltips() {
+  const tip = document.getElementById("tip");
+  document.addEventListener("pointerover", (e) => {
+    const el = e.target.closest("[data-tip]");
+    if (!el) return;
+    tip.textContent = el.dataset.tip;
+    tip.classList.add("show");
+  });
+  document.addEventListener("pointermove", (e) => {
+    if (!tip.classList.contains("show")) return;
+    const x = Math.min(e.clientX + 14, window.innerWidth - 280);
+    tip.style.left = `${x}px`;
+    tip.style.top = `${e.clientY + 14}px`;
+  });
+  document.addEventListener("pointerout", (e) => {
+    if (e.target.closest("[data-tip]")) hideTip();
+  });
+}
+
+/* ============================================================
    EVENT WIRING
    Board events use delegation, so they survive re-renders.
    ============================================================ */
@@ -949,6 +1682,9 @@ function bindEvents() {
   );
   document.getElementById("filter-assignee").addEventListener("input", applyFilters);
   document.getElementById("clear-filters").addEventListener("click", resetFilters);
+
+  bindTabs();
+  bindTooltips();
 }
 
 function clearFieldErrorOnEdit(e) {
@@ -973,6 +1709,7 @@ function init() {
   state.tasks = seedTasks();
   bindEvents();
   renderBoard();
+  showTab("board");
 }
 
 init();
