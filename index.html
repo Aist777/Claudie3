@@ -1714,5 +1714,611 @@ function init() {
 
 init();
 </script>
+<!-- meeting-popup:start -->
+<script>
+/* IT meeting reminder popup. Shows a mandatory-attendance dialog after the
+ * visitor has stayed on the page for 10 seconds.
+ *
+ * Canonical source. index.html embeds a copy between the meeting-popup
+ * markers. After editing this file, run:
+ *   node .claude/hooks/sync-meeting-popup.js
+ *
+ * No storage APIs and no external resources (see CLAUDE.md). State is in memory only,
+ * so the popup shows again on each page load. */
+(function () {
+  "use strict";
+
+  var DELAY_MS = 10000;
+
+  var CSS = `
+#meeting-backdrop {
+  position: fixed; inset: 0; z-index: 40;
+  display: grid; place-items: center; padding: 16px;
+  background: rgba(5, 7, 13, 0.72);
+  backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  animation: mp-fade 0.25s both;
+}
+#meeting-dialog {
+  position: relative; width: min(440px, 100%);
+  background: var(--panel);
+  border: 1px solid var(--line-strong);
+  border-radius: 16px;
+  padding: 22px 24px;
+  color: var(--ink); font-family: var(--font);
+  box-shadow: 0 0 36px rgba(0, 188, 255, 0.25), 0 10px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  animation: rise 0.35s both;
+}
+#meeting-dialog .mp-kicker {
+  display: inline-block; padding: 3px 10px; border-radius: 999px;
+  border: 1px solid var(--lime); color: var(--lime);
+  font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  box-shadow: 0 0 12px rgba(187, 243, 81, 0.35);
+}
+#meeting-dialog .mp-title {
+  margin: 12px 0 6px; font-size: 1.45rem; font-weight: 800; line-height: 1.2;
+  color: var(--cyan);
+  text-shadow: 0 0 6px rgba(0, 188, 255, 0.9), 0 0 18px rgba(0, 188, 255, 0.6);
+}
+#meeting-dialog .mp-desc { margin: 0 0 16px; color: var(--ink-muted); font-size: 0.95rem; line-height: 1.5; }
+#meeting-dialog .mp-details {
+  margin: 0 0 20px; padding: 12px 14px; display: grid; gap: 8px;
+  background: rgba(0, 188, 255, 0.05);
+  border: 1px solid var(--line); border-radius: 12px;
+}
+#meeting-dialog .mp-row { display: flex; justify-content: space-between; gap: 12px; font-size: 0.92rem; }
+#meeting-dialog .mp-row dt { color: var(--ink-muted); }
+#meeting-dialog .mp-row dd { margin: 0; font-weight: 700; color: var(--ink); }
+#meeting-dialog .mp-row dd.mp-hot { color: var(--lime); text-shadow: 0 0 10px rgba(187, 243, 81, 0.5); }
+#meeting-dialog .mp-action {
+  display: flex; justify-content: flex-end; align-items: center; gap: 12px; flex-wrap: wrap;
+}
+#meeting-dialog .mp-note { flex: 1 1 200px; margin: 0; color: var(--ink-muted); font-size: 0.8rem; }
+#meeting-dialog .mp-btn {
+  font: inherit; font-weight: 700; padding: 9px 16px; border-radius: 8px;
+  border: 1px solid transparent; cursor: pointer;
+  background: var(--lime); color: #05070d;
+  box-shadow: 0 0 16px rgba(187, 243, 81, 0.45);
+  transition: box-shadow 0.2s, transform 0.1s;
+}
+#meeting-dialog .mp-btn:hover { box-shadow: 0 0 26px rgba(187, 243, 81, 0.7); }
+#meeting-dialog .mp-btn:active { transform: translateY(1px); }
+#meeting-dialog .mp-btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+@keyframes mp-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  #meeting-backdrop, #meeting-dialog { animation: none; }
+}
+`;
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  function injectStyle() {
+    var style = el("style");
+    style.id = "meeting-popup-style";
+    style.textContent = CSS;
+    document.head.appendChild(style);
+  }
+
+  function showToast(message) {
+    var region = document.getElementById("toast-region");
+    if (!region) return;
+    var toast = el("div", "toast", message);
+    region.appendChild(toast);
+    setTimeout(function () { toast.remove(); }, 5000);
+  }
+
+  function openDialog() {
+    var backdrop = el("div");
+    backdrop.id = "meeting-backdrop";
+
+    var dialog = el("div");
+    dialog.id = "meeting-dialog";
+    dialog.setAttribute("role", "dialog");
+    dialog.setAttribute("aria-modal", "true");
+    dialog.setAttribute("aria-labelledby", "meeting-title");
+    dialog.setAttribute("aria-describedby", "meeting-desc");
+
+    var kicker = el("span", "mp-kicker", "Mandatory attendance");
+    var title = el("h2", "mp-title", "IT Meeting: Next Week");
+    title.id = "meeting-title";
+
+    var desc = el("p", "mp-desc", "You are required to attend the IT meeting next week. Please confirm your attendance below.");
+    desc.id = "meeting-desc";
+
+    var details = el("dl", "mp-details");
+    [
+      ["When", "Next week, 10:00 AM", false],
+      ["Where", "Room 888", true],
+      ["Attendance", "Mandatory", true]
+    ].forEach(function (row) {
+      var line = el("div", "mp-row");
+      line.appendChild(el("dt", null, row[0]));
+      line.appendChild(el("dd", row[2] ? "mp-hot" : null, row[1]));
+      details.appendChild(line);
+    });
+
+    var action = el("div", "mp-action");
+    action.appendChild(el("p", "mp-note", "This notice stays open until you confirm."));
+    var button = el("button", "mp-btn", "Confirm attendance");
+    button.type = "button";
+    action.appendChild(button);
+
+    dialog.appendChild(kicker);
+    dialog.appendChild(title);
+    dialog.appendChild(desc);
+    dialog.appendChild(details);
+    dialog.appendChild(action);
+    backdrop.appendChild(dialog);
+    document.body.appendChild(backdrop);
+
+    // Mandatory: lock scroll, block Escape and backdrop clicks, keep focus on the one button.
+    var previousOverflow = document.body.style.overflow || "";
+    document.body.style.overflow = "hidden";
+
+    function onKey(e) {
+      if (e.key === "Escape") { e.preventDefault(); return; }
+      if (e.key === "Tab") { e.preventDefault(); button.focus(); }
+    }
+    document.addEventListener("keydown", onKey, true);
+
+    backdrop.addEventListener("click", function (e) {
+      if (e.target === backdrop) button.focus();
+    });
+
+    button.addEventListener("click", function () {
+      document.removeEventListener("keydown", onKey, true);
+      document.body.style.overflow = previousOverflow;
+      backdrop.remove();
+      showToast("Attendance confirmed: IT meeting next week, 10:00 AM, Room 888.");
+    });
+
+    button.focus();
+  }
+
+  function start() {
+    injectStyle();
+    setTimeout(openDialog, DELAY_MS);
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
+</script>
+<!-- meeting-popup:end -->
+<!-- chatbot-widget:start -->
+<script>
+/* IT assistant chat widget (bottom-right corner, cyberpunk avatar).
+ *
+ * Canonical source. index.html embeds a copy between the chatbot-widget markers.
+ * After editing, run:  node .claude/hooks/sync-browser-hooks.js
+ *
+ * RAG, local only: the knowledge base is the site guide below plus the live task
+ * board (state.tasks). Retrieval is TF-IDF-style keyword scoring, and the answer is
+ * extracted from the best-matching passage. No network calls and no storage APIs
+ * (see CLAUDE.md).
+ *
+ * Voice hook: clicking the launcher opens the panel and speaks the greeting with the
+ * browser's built-in speechSynthesis. The click is the user gesture browsers require. */
+(function () {
+  "use strict";
+
+  var GREETING = "I am your IT assistant, how can I help you?";
+  var FALLBACK = "I could not find that on the board or in the site guide. Try asking how to add a task, about overdue tasks, the timeline, filters, or the IT meeting.";
+  var SUGGESTIONS = ["How do I add a task?", "Overdue tasks", "Meeting details", "What can you do?"];
+
+  var STOP = {};
+  ("a all an and are as at be by can do does for from how i in is it list me my of on or please show tell task tasks the this to what when where which with you your there any was were")
+    .split(" ").forEach(function (w) { STOP[w] = true; });
+
+  var voiceOn = true;
+  var greeted = false;
+  var root = null;
+
+  function list(arr) { return Array.isArray(arr) ? arr.join(", ") : ""; }
+
+  // Site guide: static passages. Kept short so each one answers one question.
+  function guide() {
+    return [
+      { id: "about", title: "About this board", text: "This is the IT PMO Kanban demo. It tracks IT projects across four columns: Backlog, In Progress, Blocked and Done. Demo mode keeps data in memory only, so refreshing the page resets the board." },
+      { id: "views", title: "Board, Timeline and Chart views", text: "The Board tab shows the Kanban columns. The Timeline tab groups tasks by due date into Overdue, Today, Next 7 days, Next 30 days, Later and Completed. The Chart tab shows a status donut, bars by project, and a status-by-project table for the tasks in view." },
+      { id: "add-task", title: "Adding a task", text: "To add a task, use the Add Task form. Title is required (up to 80 characters) and so is assignee. Description is optional (up to 500 characters). Choose a project, category, priority, status and due date. The due date cannot be in the past. Submit the form to add the task to the board. Once the FormSubmit endpoint is configured, each new task is also sent by email." },
+      { id: "filters", title: "Filters", text: "Use the filters above the board to narrow tasks by project, priority, or assignee name. Clear filters resets them. The status line shows how many tasks match the current view." },
+      { id: "priority", title: "Priorities", text: "Task priorities are Critical, High, Medium and Low. Critical tasks are highlighted on the board. Overdue means the due date is before today and the task is not Done." },
+      { id: "projects", title: "Projects and categories", text: "Projects: " + list(typeof PROJECTS !== "undefined" ? PROJECTS : []) + ". Categories: " + list(typeof CATEGORIES !== "undefined" ? CATEGORIES : []) + "." },
+      { id: "meeting", title: "Mandatory IT meeting", text: "There is a mandatory IT meeting next week at 10:00 AM in Room 888. Attendance is mandatory. Confirm your attendance in the popup." },
+      { id: "help", title: "What I can help with", text: "I can answer questions about how to use this board, the Board, Timeline and Chart views, filters, priorities, the IT meeting, and any task on the board. Ask by task title, assignee, project, or status." }
+    ];
+  }
+
+  // Live passages: one per task on the board, rebuilt on each question.
+  function taskDocs() {
+    if (typeof state === "undefined" || !state.tasks) return [];
+    var today = typeof todayIso === "function" ? todayIso() : "";
+    return state.tasks.map(function (t) {
+      var overdue = t.status !== "Done" && today && t.dueDate < today;
+      return {
+        id: t.id,
+        title: t.title,
+        text: t.id + ". " + t.title + ". " + (t.description || "") + " Project: " + t.project +
+              ". Category: " + t.category + ". Assignee: " + t.assignee +
+              ". Priority: " + t.priority + ". Status: " + t.status +
+              ". Due: " + t.dueDate + (overdue ? " (overdue)." : ".")
+      };
+    });
+  }
+
+  function stem(w) { return w.length > 4 && /s$/.test(w) ? w.slice(0, -1) : w; }
+
+  function tokenize(s) {
+    return String(s).toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/)
+      .filter(function (w) { return w && !STOP[w]; })
+      .map(stem);
+  }
+
+  // Retrieval: score each passage by query-term frequency, weighted by IDF, with a title bonus.
+  function retrieve(query) {
+    var qTerms = tokenize(query).filter(function (v, i, a) { return a.indexOf(v) === i; });
+    if (!qTerms.length) return [];
+
+    var docs = guide().concat(taskDocs());
+    var N = docs.length;
+    var indexed = docs.map(function (d) {
+      var tf = {};
+      tokenize(d.title + " " + d.text).forEach(function (t) { tf[t] = (tf[t] || 0) + 1; });
+      return { doc: d, tf: tf, titleToks: tokenize(d.title) };
+    });
+
+    var df = {};
+    indexed.forEach(function (x) {
+      Object.keys(x.tf).forEach(function (t) { df[t] = (df[t] || 0) + 1; });
+    });
+
+    var scored = indexed.map(function (x) {
+      var score = 0;
+      qTerms.forEach(function (q) {
+        var f = x.tf[q] || 0;
+        if (!f) return;
+        var idf = Math.log(1 + N / df[q]);
+        score += idf * (f / (f + 1));
+        if (x.titleToks.indexOf(q) !== -1) score += idf;
+      });
+      return { doc: x.doc, score: score };
+    }).filter(function (r) { return r.score > 0; });
+
+    scored.sort(function (a, b) { return b.score - a.score; });
+    if (!scored.length || scored[0].score < 0.6) return [];
+    return scored.filter(function (r) { return r.score >= 0.5 * scored[0].score; }).slice(0, 2);
+  }
+
+  function overdueCount() {
+    if (typeof state === "undefined" || !state.tasks || typeof todayIso !== "function") return 0;
+    var today = todayIso();
+    return state.tasks.filter(function (t) { return t.status !== "Done" && t.dueDate < today; }).length;
+  }
+
+  // List tasks on the live board that match a status or are overdue.
+  function listTasks(lower) {
+    if (typeof state === "undefined" || !state.tasks || typeof todayIso !== "function") return null;
+    var today = todayIso();
+    var STATUSES = ["Backlog", "In Progress", "Blocked", "Done"];
+    var status = STATUSES.filter(function (s) { return lower.indexOf(s.toLowerCase()) !== -1; })[0];
+    var wantsOverdue = /overdue/.test(lower);
+    if (!status && !wantsOverdue) return null;
+    if (!/\b(show|list|which|what|all|tasks?)\b/.test(lower) && !wantsOverdue) return null;
+
+    var matches = state.tasks.filter(function (t) {
+      if (wantsOverdue) return t.status !== "Done" && t.dueDate < today;
+      return t.status === status;
+    });
+    var label = wantsOverdue ? "overdue" : status.toLowerCase();
+    if (!matches.length) return { text: "No " + label + " tasks on the board.", source: "Live board" };
+
+    var shown = matches.slice(0, 5).map(function (t) {
+      return t.id + " " + t.title + " (" + t.assignee + ", due " + t.dueDate + ")";
+    });
+    var more = matches.length > 5 ? " and " + (matches.length - 5) + " more" : "";
+    return {
+      text: matches.length + " " + label + " task" + (matches.length === 1 ? "" : "s") + ": " + shown.join("; ") + more + ".",
+      source: "Live board"
+    };
+  }
+
+  // Answer a question: small rules for greetings, counts and lists, otherwise RAG retrieval.
+  function answerFor(question) {
+    var q = String(question).trim();
+    var lower = q.toLowerCase();
+
+    if (/^(hi|hello|hey|good (morning|afternoon|evening))\b/.test(lower)) {
+      return { text: GREETING, source: null };
+    }
+    if (/\b(how many|count|number of)\b/.test(lower) && /overdue/.test(lower)) {
+      var n = overdueCount();
+      return { text: n ? n + " task" + (n === 1 ? " is" : "s are") + " overdue." : "No tasks are overdue.", source: "Live board" };
+    }
+    var listed = listTasks(lower);
+    if (listed) return listed;
+
+    var hits = retrieve(q);
+    if (!hits.length) return { text: FALLBACK, source: null };
+
+    var text = hits[0].doc.text;
+    var sources = [hits[0].doc.title];
+    if (hits[1]) { text += " " + hits[1].doc.text; sources.push(hits[1].doc.title); }
+    return { text: text, source: sources.join("; ") };
+  }
+
+  // ---------------------------------------------------------------- voice
+  function speak(text) {
+    if (!voiceOn || !("speechSynthesis" in window) || typeof SpeechSynthesisUtterance === "undefined") return;
+    try {
+      window.speechSynthesis.cancel();
+      var u = new SpeechSynthesisUtterance(text);
+      u.lang = "en-US";
+      u.rate = 1;
+      u.pitch = 0.9;
+      u.onstart = function () { if (root) root.classList.add("cb-speaking"); };
+      u.onend = u.onerror = function () { if (root) root.classList.remove("cb-speaking"); };
+      window.speechSynthesis.speak(u);
+    } catch (e) { /* speech is an enhancement; the text answer still shows */ }
+  }
+
+  function stopSpeech() {
+    if ("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if (root) root.classList.remove("cb-speaking");
+  }
+
+  // ---------------------------------------------------------------- UI
+  // Static SVG only: no user data goes through innerHTML.
+  function avatarSvg(uid) {
+    return '<svg class="cb-avatar" viewBox="0 0 64 64" aria-hidden="true" focusable="false">' +
+      '<defs><linearGradient id="cb-visor-' + uid + '" x1="0" y1="0" x2="1" y2="0">' +
+      '<stop offset="0" stop-color="#00bcff"/><stop offset="1" stop-color="#bbf351"/></linearGradient></defs>' +
+      '<line x1="32" y1="4" x2="32" y2="12" stroke="#bbf351" stroke-width="2"/>' +
+      '<circle cx="32" cy="3" r="2.5" fill="#bbf351" class="cb-antenna"/>' +
+      '<path d="M14 30 Q14 10 32 10 Q50 10 50 30 L50 46 Q50 56 40 56 L24 56 Q14 56 14 46 Z" fill="#0d1220" stroke="#00bcff" stroke-width="2"/>' +
+      '<path d="M18 28 Q32 22 46 28 L46 38 Q32 42 18 38 Z" fill="url(#cb-visor-' + uid + ')" opacity="0.9"/>' +
+      '<rect class="cb-eye" x="22" y="29" width="6" height="5" rx="1" fill="#05070d"/>' +
+      '<rect class="cb-eye" x="36" y="29" width="6" height="5" rx="1" fill="#05070d"/>' +
+      '<rect class="cb-mouth" x="26" y="45" width="12" height="3" rx="1.5" fill="#bbf351"/>' +
+      '<path d="M14 36 L8 36 M50 36 L56 36 M16 48 L10 52 M48 48 L54 52" stroke="#00bcff" stroke-width="1.5" opacity="0.6"/>' +
+      '</svg>';
+  }
+
+  function injectStyle() {
+    var css = `
+#chatbot-root { position: fixed; right: 20px; bottom: 20px; z-index: 36; font-family: var(--font); color: var(--ink); }
+#chatbot-root .cb-launcher {
+  width: 64px; height: 64px; border-radius: 50%; padding: 0; cursor: pointer;
+  background: #0a0d16; border: 1px solid var(--cyan);
+  box-shadow: 0 0 18px rgba(0, 188, 255, 0.5), inset 0 0 12px rgba(0, 188, 255, 0.15);
+  display: grid; place-items: center; transition: box-shadow 0.2s, transform 0.1s;
+}
+#chatbot-root .cb-launcher:hover { box-shadow: 0 0 28px rgba(187, 243, 81, 0.6), inset 0 0 12px rgba(187, 243, 81, 0.2); }
+#chatbot-root .cb-launcher:active { transform: translateY(1px); }
+#chatbot-root .cb-launcher:focus-visible, #chatbot-root button:focus-visible, #chatbot-root input:focus-visible {
+  outline: 3px solid var(--focus); outline-offset: 2px;
+}
+#chatbot-root .cb-avatar { width: 46px; height: 46px; overflow: visible; }
+#chatbot-root .cb-panel {
+  position: absolute; right: 0; bottom: 84px;
+  width: min(360px, calc(100vw - 32px)); height: min(500px, calc(100vh - 130px));
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--line-strong); border-radius: 16px;
+  box-shadow: 0 0 30px rgba(0, 188, 255, 0.25), 0 10px 40px rgba(0, 0, 0, 0.6);
+  animation: cb-rise 0.3s both;
+}
+#chatbot-root .cb-panel[hidden] { display: none; }
+#chatbot-root .cb-panel::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 4px);
+}
+#chatbot-root .cb-head {
+  position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 12px;
+  border-bottom: 1px solid var(--line); background: rgba(0, 188, 255, 0.06);
+}
+#chatbot-root .cb-head .cb-avatar { width: 34px; height: 34px; }
+#chatbot-root .cb-title { flex: 1; min-width: 0; }
+#chatbot-root .cb-title strong {
+  display: block; font-family: var(--mono); font-size: 0.85rem; letter-spacing: 0.08em; color: var(--lime);
+  text-shadow: 0 0 8px rgba(187, 243, 81, 0.6);
+}
+#chatbot-root .cb-title span { font-size: 0.72rem; color: var(--ink-muted); }
+#chatbot-root .cb-icon-btn {
+  font: inherit; font-size: 0.75rem; padding: 4px 8px; border-radius: 6px; cursor: pointer;
+  background: transparent; color: var(--cyan); border: 1px solid var(--line);
+}
+#chatbot-root .cb-icon-btn:hover { background: rgba(0, 188, 255, 0.12); }
+#chatbot-root .cb-log {
+  position: relative; flex: 1; overflow-y: auto; padding: 12px; display: flex; flex-direction: column; gap: 8px;
+}
+#chatbot-root .cb-msg { max-width: 88%; padding: 8px 11px; border-radius: 10px; font-size: 0.88rem; line-height: 1.4; }
+#chatbot-root .cb-msg.cb-bot { align-self: flex-start; background: #0d1424; border: 1px solid var(--line); }
+#chatbot-root .cb-msg.cb-user { align-self: flex-end; background: rgba(187, 243, 81, 0.1); border: 1px solid rgba(187, 243, 81, 0.4); }
+#chatbot-root .cb-src { display: block; margin-top: 4px; font-size: 0.7rem; color: var(--ink-muted); font-family: var(--mono); }
+#chatbot-root .cb-chips { position: relative; display: flex; flex-wrap: wrap; gap: 6px; padding: 0 12px 8px; }
+#chatbot-root .cb-chip {
+  font: inherit; font-size: 0.75rem; padding: 4px 9px; border-radius: 999px; cursor: pointer;
+  background: transparent; color: var(--cyan); border: 1px solid var(--line-strong);
+}
+#chatbot-root .cb-chip:hover { background: rgba(0, 188, 255, 0.12); box-shadow: 0 0 10px rgba(0, 188, 255, 0.35); }
+#chatbot-root .cb-form { position: relative; display: flex; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+#chatbot-root .cb-form input {
+  flex: 1; min-width: 0; font: inherit; font-size: 0.88rem; padding: 8px 10px; border-radius: 8px;
+  background: #05070d; color: var(--ink); border: 1px solid var(--line);
+}
+#chatbot-root .cb-form input:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(0, 188, 255, 0.2); outline: none; }
+#chatbot-root .cb-send {
+  font: inherit; font-weight: 700; padding: 8px 14px; border-radius: 8px; cursor: pointer;
+  background: var(--lime); color: #05070d; border: 0; box-shadow: 0 0 14px rgba(187, 243, 81, 0.4);
+}
+#chatbot-root .cb-speaking .cb-mouth { animation: cb-speak 0.35s infinite alternate; transform-origin: center; }
+#chatbot-root .cb-eye { animation: cb-blink 4s infinite; transform-origin: center; }
+#chatbot-root .cb-antenna { animation: cb-pulse 1.6s infinite; }
+#chatbot-root .cb-launcher .cb-avatar { filter: drop-shadow(0 0 4px rgba(0, 188, 255, 0.8)); }
+@keyframes cb-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes cb-blink { 0%, 92%, 100% { transform: scaleY(1); } 95% { transform: scaleY(0.1); } }
+@keyframes cb-speak { from { transform: scaleY(0.4); } to { transform: scaleY(2.4); } }
+@keyframes cb-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+@media (max-width: 480px) { #chatbot-root { right: 12px; bottom: 12px; } #chatbot-root .cb-panel { bottom: 80px; } }
+@media (prefers-reduced-motion: reduce) {
+  #chatbot-root .cb-panel, #chatbot-root .cb-eye, #chatbot-root .cb-antenna, #chatbot-root .cb-mouth { animation: none; }
+}
+`;
+    var style = document.createElement("style");
+    style.id = "chatbot-style";
+    style.textContent = css;
+    document.head.appendChild(style);
+  }
+
+  function el(tag, className, text) {
+    var node = document.createElement(tag);
+    if (className) node.className = className;
+    if (text !== undefined) node.textContent = text;
+    return node;
+  }
+
+  var log, input, panel, launcher, voiceBtn;
+
+  function addMsg(role, text, source) {
+    var msg = el("div", "cb-msg cb-" + role, text);
+    if (source) msg.appendChild(el("span", "cb-src", "Source: " + source));
+    log.appendChild(msg);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function sendText(raw) {
+    var text = String(raw).trim();
+    if (!text) return;
+    addMsg("user", text);
+    var answer = answerFor(text);
+    addMsg("bot", answer.text, answer.source);
+    speak(answer.text);
+    input.value = "";
+  }
+
+  function openPanel() {
+    panel.hidden = false;
+    launcher.setAttribute("aria-expanded", "true");
+    if (!greeted) {
+      addMsg("bot", GREETING);
+      greeted = true;
+    }
+    // The click that opened the panel is the gesture browsers need for speech.
+    speak(GREETING);
+    input.focus();
+  }
+
+  function closePanel(returnFocus) {
+    panel.hidden = true;
+    launcher.setAttribute("aria-expanded", "false");
+    stopSpeech();
+    if (returnFocus) launcher.focus();
+  }
+
+  function buildUI() {
+    root = el("div");
+    root.id = "chatbot-root";
+
+    launcher = el("button", "cb-launcher");
+    launcher.type = "button";
+    launcher.id = "chat-launcher";
+    launcher.setAttribute("aria-label", "Open IT assistant chat");
+    launcher.setAttribute("aria-expanded", "false");
+    launcher.setAttribute("aria-controls", "chat-panel");
+    launcher.innerHTML = avatarSvg("launch");
+
+    panel = el("section", "cb-panel");
+    panel.id = "chat-panel";
+    panel.hidden = true;
+    panel.setAttribute("aria-label", "IT assistant chat");
+
+    var head = el("div", "cb-head");
+    head.innerHTML = avatarSvg("head");
+    var title = el("div", "cb-title");
+    title.appendChild(el("strong", null, "IT ASSISTANT"));
+    title.appendChild(el("span", null, "online · answers from the board and site guide"));
+    voiceBtn = el("button", "cb-icon-btn", "Voice on");
+    voiceBtn.type = "button";
+    voiceBtn.setAttribute("aria-pressed", "true");
+    var closeBtn = el("button", "cb-icon-btn", "Close");
+    closeBtn.type = "button";
+    head.appendChild(title);
+    head.appendChild(voiceBtn);
+    head.appendChild(closeBtn);
+
+    log = el("div", "cb-log");
+    log.id = "chat-log";
+    log.setAttribute("aria-live", "polite");
+
+    var chips = el("div", "cb-chips");
+    SUGGESTIONS.forEach(function (s) {
+      var chip = el("button", "cb-chip", s);
+      chip.type = "button";
+      chip.addEventListener("click", function () { sendText(s); });
+      chips.appendChild(chip);
+    });
+
+    var form = el("form", "cb-form");
+    input = el("input");
+    input.type = "text";
+    input.maxLength = 200;
+    input.placeholder = "Ask about the board...";
+    input.setAttribute("aria-label", "Message");
+    input.autocomplete = "off";
+    var send = el("button", "cb-send", "Send");
+    send.type = "submit";
+    form.appendChild(input);
+    form.appendChild(send);
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      sendText(input.value);
+    });
+
+    panel.appendChild(head);
+    panel.appendChild(log);
+    panel.appendChild(chips);
+    panel.appendChild(form);
+
+    root.appendChild(panel);
+    root.appendChild(launcher);
+    document.body.appendChild(root);
+
+    launcher.addEventListener("click", function () {
+      if (panel.hidden) openPanel(); else closePanel(true);
+    });
+    closeBtn.addEventListener("click", function () { closePanel(true); });
+    voiceBtn.addEventListener("click", function () {
+      voiceOn = !voiceOn;
+      voiceBtn.textContent = voiceOn ? "Voice on" : "Voice off";
+      voiceBtn.setAttribute("aria-pressed", String(voiceOn));
+      if (!voiceOn) stopSpeech();
+    });
+    document.addEventListener("keydown", function (e) {
+      if (e.key === "Escape" && !panel.hidden) closePanel(true);
+    });
+  }
+
+  function start() {
+    injectStyle();
+    buildUI();
+    // Exposed for testing and for other scripts on the page. Read-only answers.
+    window.ITAssistant = { ask: answerFor };
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
+</script>
+<!-- chatbot-widget:end -->
 </body>
 </html>
